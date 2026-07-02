@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile src/gateway/session.py)",
+      "Bash(python -m py_compile src/agents/chat/prompts.py)",
+      "Bash(python -m py_compile src/agents/chat/agent.py)",
+      "Bash(python -m py_compile src/gateway/chat_router.py)"
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+# ============================================================
+# catch_fish - 闲鱼商品获取与性价比分析系统
+# Python 3.11+
+# ============================================================
+
+# ---- Web Framework ----
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+sse-starlette>=2.0.0
+
+# ---- Async HTTP ----
+httpx>=0.27.0
+aiohttp>=3.9.0
+
+# ---- AI / LLM ----
+anthropic>=0.30.0
+openai>=1.30.0                   # 备用 LLM 底座
+
+# ---- MCP Protocol ----
+mcp>=1.0.0
+
+# ---- Web Scraping ----
+beautifulsoup4>=4.12.0
+lxml>=5.1.0
+parsel>=1.9.0
+
+# ---- Database ----
+sqlalchemy[asyncio]>=2.0.30
+pymysql>=1.1.0
+aiomysql>=0.2.0
+alembic>=1.13.0
+
+# ---- Cache ----
+redis>=5.0.0
+
+# ---- Data Validation ----
+pydantic>=2.7.0
+pydantic-settings>=2.3.0
+
+# ---- Config ----
+python-dotenv>=1.0.0
+
+# ---- Utilities ----
+loguru>=0.7.0
+tenacity>=8.3.0                  # 重试机制
+
+# ---- Dev / Test ----
+pytest>=8.2.0
+pytest-asyncio>=0.23.0
+pytest-cov>=5.0.0
+httpx-ws>=0.5.0                  # WebSocket testing
