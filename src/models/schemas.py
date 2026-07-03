@@ -212,3 +212,18 @@ class SSEProgressEvent(BaseModel):
     stage: Optional[str] = None    # orchestrating / searching / calculating / completed
     detail: Optional[str] = None   # 进度描述
     data: Optional[dict] = None    # 附加数据
+
+
+
+
+if __name__ == '__main__':
+    class Encyc():
+    # class Encyc(BaseModel):
+        # source_urls: list[str] = Field(default_factory=list)
+        source_urls: list[str] = []
+        fetched_at: datetime = Field(default_factory=datetime.now)
+
+    obj1 = Encyc()
+    obj2 = Encyc( source_urls=["https://example.com/1"])
+    print(obj1)
+    print(obj2)

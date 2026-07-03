@@ -83,7 +83,7 @@
 | 缓存 | Redis (可选) | `[TODO: 7.0+]` | 百科数据缓存 / 会话管理 |
 | 容器化 | Docker + Docker Compose | `[TODO]` | 一键部署 |
 | CI/CD | `[TODO: GitHub Actions / 无]` | `[TODO]` | 持续集成 |
-| LLM 底座 | `[TODO: Claude API / OpenAI / 本地模型]` | `[TODO]` | 驱动 Agent 推理 |
+| LLM 底座 | `[TODO: DeepSeek / OpenAI / 本地模型]` | `[TODO]` | 驱动 Agent 推理 |
 
 ---
 
@@ -670,8 +670,8 @@ REDIS_URL=redis://redis:6379/0
 
 # ---- LLM 配置 ----
 LLM_API_KEY=[TODO: 你的 API Key]
-LLM_BASE_URL=[TODO: https://api.anthropic.com 或 OpenAI 兼容地址]
-LLM_MODEL=[TODO: claude-sonnet-5 / gpt-4o / ...]
+LLM_BASE_URL=[TODO: https://api.deepseek.com 或 OpenAI 兼容地址]
+LLM_MODEL=[TODO: deepseek-chat / gpt-4o / ...]
 
 # ---- 闲鱼认证 ----
 XIANYU_COOKIE=[TODO: 闲鱼登录 Cookie]

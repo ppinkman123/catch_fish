@@ -28,11 +28,11 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
-    # ---- LLM: Anthropic Claude (主) ----
-    anthropic_api_key: str = ""
-    anthropic_base_url: str = "https://api.anthropic.com"
-    anthropic_model: str = "claude-sonnet-5-20251001"
-    anthropic_max_tokens: int = 4096
+    # ---- LLM: DeepSeek (主) ----
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-chat"
+    deepseek_max_tokens: int = 4096
 
     # ---- LLM: OpenAI (备用) ----
     openai_api_key: str = ""

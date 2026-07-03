@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-本文件为 Claude Code (claude.ai/code) 在此仓库中工作时提供指导。
+本文件为 AI 编码助手在此仓库中工作时提供指导。
 
 ## 项目概述
 
@@ -50,7 +50,7 @@ Finder   Encyclopedia    ← 两者并行执行（asyncio.gather）
 ## 智能体基类
 
 所有智能体均继承 `BaseAgent`（`src/agents/base.py`），该基类提供：
-- 延迟初始化 `anthropic.AsyncAnthropic` 客户端（从配置中读取 `ANTHROPIC_API_KEY`）
+- 延迟初始化 `AsyncOpenAI` 客户端（从配置中读取 `DEEPSEEK_API_KEY`，兼容 DeepSeek / OpenAI API）
 - `ask_llm()` — 返回原始文本，带自动重试（使用 tenacity 库）
 - `ask_llm_json()` — 调用 `ask_llm()` 后从响应中提取 JSON（能处理 ```json 代码块和裸 JSON 对象）
 - 抽象方法 `execute(**kwargs) -> Any`，每个智能体必须实现
@@ -96,7 +96,7 @@ Finder   Encyclopedia    ← 两者并行执行（asyncio.gather）
 ## 配置
 
 `src/config.py` 使用 `pydantic-settings` 从 `.env` 文件加载配置。关键环境变量：
-- `ANTHROPIC_API_KEY`（任何 LLM 调用必需）
+- `DEEPSEEK_API_KEY`（任何 LLM 调用必需）
 - `DATABASE_URL` / `DATABASE_URL_ASYNC`（MySQL，异步使用 `aiomysql` 驱动）
 - `REDIS_URL`（可选，尚未接入代码）
 - `XIANYU_COOKIE`（用于真实 API 访问，尚未使用）

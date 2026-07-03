@@ -2,6 +2,14 @@
 Finder Agent — 闲鱼商品搜索
 调用闲鱼 MCP Server 搜索并整理二手商品信息
 """
+# import sys
+# from pathlib import Path
+
+# # 将项目根目录加入 Python 搜索路径
+# # __file__ = src/agents/base.py → 需要上三层才能到项目根目录
+# # ✅ 正确：到项目根目录
+# sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))  # → D:\code\catch_fish\
+
 
 from datetime import datetime
 
@@ -182,3 +190,9 @@ class FinderAgent(BaseAgent):
             return items
         except Exception:
             return []
+
+
+if __name__ == '__main__':
+    from src.mcp.xianyu_server import XianyuMCPServer
+    fa = FinderAgent(mcp_client = XianyuMCPServer)
+    print(fa.mcp)

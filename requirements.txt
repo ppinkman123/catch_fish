@@ -13,8 +13,7 @@ httpx>=0.27.0
 aiohttp>=3.9.0
 
 # ---- AI / LLM ----
-anthropic>=0.30.0
-openai>=1.30.0                   # 备用 LLM 底座
+openai>=1.30.0                   # 主 LLM 底座（兼容 DeepSeek / OpenAI）
 
 # ---- MCP Protocol ----
 mcp>=1.0.0

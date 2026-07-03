@@ -33,7 +33,7 @@
 |------|------|
 | 语言 | Python 3.11+ |
 | Web 框架 | FastAPI |
-| AI Agent | 自研 Agent 框架 + Anthropic Claude API |
+| AI Agent | 自研 Agent 框架 + DeepSeek API |
 | 协议 | A2A (JSON/HTTP) + MCP |
 | 网页解析 | BeautifulSoup4 / lxml / parsel |
 | 数据库 | MySQL 8.0 + SQLAlchemy (异步) |
@@ -46,7 +46,7 @@
 
 - Python 3.11+
 - Docker & Docker Compose（或本地 MySQL + Redis）
-- Anthropic API Key
+- DeepSeek API Key
 
 ### 安装
 
@@ -57,7 +57,7 @@ cd catch_fish
 
 # 2. 配置环境变量
 cp .env.example .env
-# 编辑 .env，填入你的 ANTHROPIC_API_KEY
+# 编辑 .env，填入你的 DEEPSEEK_API_KEY
 
 # 3. 安装依赖
 pip install -r requirements.txt
