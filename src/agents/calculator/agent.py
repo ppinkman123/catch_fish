@@ -161,10 +161,11 @@ class CalculatorAgent(BaseAgent):
     ) -> dict:
         """用 LLM 进行深度分析"""
 
-        # 构建新品价格信息
+        # 提取各渠道价格
         jd_price = "未知"
         tmall_price = "未知"
         official_price = "未知"
+        pdd_price = "未知"
         for p in encyclopedia_result.new_prices:
             if p.channel == "jd":
                 jd_price = str(p.price)
@@ -172,6 +173,11 @@ class CalculatorAgent(BaseAgent):
                 tmall_price = str(p.price)
             elif p.channel == "official":
                 official_price = str(p.price)
+            elif p.channel == "pdd":
+                pdd_price = str(p.price)
+
+        # 推断品类（从商品名称和规格推断）
+        category = self._guess_category(product_name, encyclopedia_result)
 
         # 构建二手商品摘要（取 TOP 10）
         items_text = ""
@@ -181,17 +187,21 @@ class CalculatorAgent(BaseAgent):
             items_text += (
                 f"{i}. {item.title} | 价格:¥{item.price} | "
                 f"成色:{item.condition or '未知'} | "
+                f"卖家:{item.seller_nickname or '未知'} | "
                 f"折扣率:{sd['discount_rate']:.0%} | "
                 f"规则评分:{sd['score']}/100\n"
             )
 
         prompt = CALCULATOR_ANALYZE_PROMPT.format(
             product_name=product_name,
+            category=category,
             jd_price=jd_price,
             tmall_price=tmall_price,
+            pdd_price=pdd_price,
             official_price=official_price,
             new_price=new_price,
             release_date=encyclopedia_result.release_date or "未知",
+            origin=encyclopedia_result.origin or "未知",
             warranty=encyclopedia_result.warranty or "标准保修",
             used_items=items_text or "（暂无可用二手商品数据）",
         )
@@ -204,6 +214,29 @@ class CalculatorAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"LLM 分析失败: {e}")
             return {"verdict": "分析服务暂时不可用，请参考规则引擎评分结果。"}
+
+    @staticmethod
+    def _guess_category(product_name: str, encyclopedia: EncyclopediaResult) -> str:
+        """根据商品名称和规格推断品类"""
+        name_lower = product_name.lower()
+        specs_keys = " ".join(encyclopedia.specs.keys()).lower()
+
+        watch_keywords = ["表", "watch", "rolex", "劳力士", "卡西欧", "欧米茄", "浪琴", "天梭", "seiko"]
+        clothing_keywords = ["衣", "服", "裤", "裙", "鞋", "t恤", "卫衣", "夹克", "衬衫", "nike", "adidas"]
+        bag_keywords = ["包", "bag", "lv", "gucci", "chanel", "hermes", "爱马仕", "香奈儿"]
+        digital_keywords = ["手机", "iphone", "ipad", "macbook", "电脑", "笔记本", "显卡", "cpu",
+                           "耳机", "相机", "镜头", "平板", "手表智能", "apple watch"]
+
+        if any(w in name_lower or w in specs_keys for w in watch_keywords):
+            return "手表"
+        elif any(w in name_lower for w in clothing_keywords):
+            return "服装/鞋履"
+        elif any(w in name_lower for w in bag_keywords):
+            return "包袋"
+        elif any(w in name_lower or w in specs_keys for w in digital_keywords):
+            return "数码产品"
+        else:
+            return "通用商品"
 
     def _empty_analysis(self, encyclopedia_result: EncyclopediaResult) -> dict:
         """无二手商品时的分析"""
@@ -237,3 +270,87 @@ class CalculatorAgent(BaseAgent):
         avg = sum(prices) / len(prices)
         # 假设二手均价约为新品的 70%
         return round(avg / 0.7, 2)
+
+
+if __name__ == '__main__':
+    import asyncio
+    import sys
+
+    from src.config import settings
+    from src.agents.finder.agent import FinderAgent
+    from src.agents.encyclopedia.agent import EncyclopediaAgent
+    from src.mcp.xianyu_server import XianyuMCPServer
+
+    async def main():
+        keyword = sys.argv[1] if len(sys.argv) > 1 else "劳力士黑冰糖"
+
+        # ---- 创建上游 Agent ----
+        cookie = settings.xianyu_cookie
+        if cookie:
+            mcp = XianyuMCPServer(cookie=cookie)
+            print(f"[INFO] Cookie 已配置，使用真实闲鱼搜索")
+        else:
+            mcp = None
+            print(f"[INFO] Cookie 未配置，Finder 使用 LLM 模拟数据")
+
+        finder = FinderAgent(mcp_client=mcp)
+        encyclopedia = EncyclopediaAgent()
+        calculator = CalculatorAgent()
+
+        print(f"{'=' * 60}")
+        print(f"CalculatorAgent 全链路测试 — 商品: {keyword}")
+        print(f"{'=' * 60}\n")
+
+        # ---- 并行跑 Finder + Encyclopedia ----
+        print("[1/2] 并行执行 Finder + Encyclopedia...\n")
+        finder_result, enc_result = await asyncio.gather(
+            finder.execute(product_name=keyword, max_results=2),
+            encyclopedia.execute(product_name=keyword),
+        )
+
+        print(f"   Finder: {finder_result.total_count} 件二手商品")
+        print(f"   Encyclopedia: {enc_result.product_name}, 最低全新价 ¥{enc_result.lowest_new_price or 'N/A'}\n")
+
+        # ---- 跑 Calculator ----
+        print("[2/2] 性价比分析中...\n")
+        result = await calculator.execute(
+            finder_result=finder_result,
+            encyclopedia_result=enc_result,
+        )
+
+        # ---- 输出 ----
+        print(f"{'=' * 60}")
+        print(f"📊 分析结果: {enc_result.product_name}")
+        print(f"   品类: {calculator._guess_category(keyword, enc_result)}")
+        print(f"   产地: {enc_result.origin or '未知'}  |  上市: {enc_result.release_date or '未知'}")
+        print(f"   最低全新价: ¥{enc_result.lowest_new_price or 'N/A'}")
+        print()
+
+        print("🏷️ 新品渠道价格:")
+        for p in enc_result.new_prices:
+            print(f"   [{p.channel}] ¥{p.price}  {'缺货' if not p.in_stock else '有货'}")
+
+        print(f"\n📈 市场概况:")
+        print(f"   二手均价: ¥{result.market_summary.avg_used_price}")
+        print(f"   价格区间: ¥{result.market_summary.price_range['min']} ~ ¥{result.market_summary.price_range['max']}")
+        print(f"   在售数量: {result.market_summary.total_listings}")
+        print(f"   整体建议: {result.market_summary.recommendation}")
+
+        if result.best_deal:
+            print(f"\n⭐ 最佳推荐:")
+            print(f"   商品: {result.best_deal.title}")
+            print(f"   价格: ¥{result.best_deal.price}  |  新品: ¥{result.best_deal.new_price}")
+            print(f"   折扣率: {result.best_deal.discount_rate:.0%}  |  评分: {result.best_deal.score}/100")
+            print(f"   理由: {result.best_deal.reason}")
+
+        if result.recommendations:
+            print(f"\n📋 推荐列表 (≥60分):")
+            for i, rec in enumerate(result.recommendations, 1):
+                print(f"   [{i}] {rec.title}")
+                print(f"       ¥{rec.price} | 折扣{rec.discount_rate:.0%} | 评分{rec.score}/100")
+
+        print(f"\n📝 AI 结论:")
+        print(f"   {result.verdict}")
+        print(f"\n{'=' * 60}")
+
+    asyncio.run(main())

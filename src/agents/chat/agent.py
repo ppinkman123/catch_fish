@@ -19,6 +19,7 @@ from src.agents.chat.prompts import (
     GREETING_PROMPT,
     INTENT_ROUTING_PROMPT,
 )
+from src.config import settings
 from src.gateway.session import Session
 from src.models.schemas import SearchResultResponse
 from src.orchestrator.workflow import CatchFishWorkflow
@@ -50,10 +51,33 @@ class ChatAgent(BaseAgent):
 
     def __init__(self):
         super().__init__()
-        self._workflow = CatchFishWorkflow()
+        mcp_client = None
+        if settings.xianyu_cookie:
+            try:
+                from src.mcp.xianyu_server import XianyuMCPServer
+                mcp_client = XianyuMCPServer(cookie=settings.xianyu_cookie)
+                logger.info("已配置闲鱼 MCP 客户端，使用真实搜索")
+            except Exception as e:
+                logger.warning(f"闲鱼 MCP 客户端初始化失败: {e}，回退到模拟数据")
+        else:
+            logger.info("XIANYU_COOKIE 未配置，Finder 将使用模拟数据")
+        self._workflow = CatchFishWorkflow(mcp_client=mcp_client)
 
     def system_prompt(self) -> str:
         return CHAT_SYSTEM_PROMPT
+
+    async def execute(self, **kwargs) -> str:
+        """
+        实现 BaseAgent 抽象方法。
+        ChatAgent 的主要入口是 handle_message()，此方法为兼容性适配。
+        """
+        session = kwargs.get("session")
+        user_message = kwargs.get("user_message", "")
+        on_progress = kwargs.get("on_progress")
+        if session is None:
+            from src.gateway.session import Session
+            session = Session(session_id=kwargs.get("session_id", "default"))
+        return await self.handle_message(session, user_message, on_progress)
 
     async def handle_message(
         self,

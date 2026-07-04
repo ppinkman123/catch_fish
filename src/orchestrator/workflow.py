@@ -98,9 +98,13 @@ class CatchFishWorkflow:
     Calculator 依赖前两者全部完成
     """
 
-    def __init__(self):
+    def __init__(self, mcp_client=None):
+        """
+        Args:
+            mcp_client: 闲鱼 MCP 客户端（可选，不传则 Finder 使用 LLM 模拟数据）
+        """
         self.orchestrator = OrchestratorAgent()
-        self.finder = FinderAgent()
+        self.finder = FinderAgent(mcp_client=mcp_client)
         self.encyclopedia = EncyclopediaAgent()
         self.calculator = CalculatorAgent()
 
@@ -234,3 +238,97 @@ class CatchFishWorkflow:
             ctx.tasks["calculator"].status = TaskStatus.FAILED
             ctx.tasks["calculator"].error = str(e)
             raise
+
+if __name__ == '__main__':
+    import asyncio
+    import sys
+    import time
+
+    async def main():
+        from src.config import settings
+        from src.mcp.xianyu_server import XianyuMCPServer
+
+        query = sys.argv[1] if len(sys.argv) > 1 else "帮我看看 iPhone 15 Pro 256G 二手值得入手吗"
+
+        # ---- 有 Cookie → 真实搜索；无 Cookie → 模拟数据 ----
+        cookie = settings.xianyu_cookie
+        if cookie:
+            mcp = XianyuMCPServer(cookie=cookie)
+            print(f"[INFO] Cookie 已配置，使用真实闲鱼搜索")
+        else:
+            mcp = None
+            print(f"[INFO] Cookie 未配置，Finder 使用 LLM 模拟数据")
+
+        print(f"{'=' * 60}")
+        print(f"CatchFishWorkflow 全链路测试")
+        print(f"查询: {query}")
+        print(f"{'=' * 60}\n")
+
+        wf = CatchFishWorkflow(mcp_client=mcp)
+        search_id = f"test_{int(time.time())}"
+
+        t0 = time.time()
+        try:
+            result = await wf.execute(search_id=search_id, user_query=query)
+            elapsed = time.time() - t0
+
+            print(f"\n{'=' * 60}")
+            print(f"✅ 工作流执行成功 ({elapsed:.1f}s)")
+            print(f"{'=' * 60}")
+            print(f"  search_id: {result.search_id}")
+            print(f"  查询: {result.query}")
+
+            # --- 商品百科 ---
+            pi = result.product_info
+            print(f"\n📚 商品百科:")
+            print(f"  商品: {pi.product_name}")
+            print(f"  品牌: {pi.brand or 'N/A'}  |  型号: {pi.model or 'N/A'}")
+            print(f"  产地: {pi.origin or 'N/A'}  |  上市: {pi.release_date or 'N/A'}")
+            print(f"  评分: {pi.rating or 'N/A'}  |  保修: {pi.warranty or 'N/A'}")
+            print(f"  最低全新价: ¥{pi.lowest_new_price or 'N/A'}")
+            if pi.specs:
+                print(f"  规格: {pi.specs}")
+            if pi.new_prices:
+                print(f"  渠道价格:")
+                for p in pi.new_prices:
+                    print(f"    [{p.channel}] ¥{p.price}  {'缺货' if not p.in_stock else '有货'}")
+
+            # --- 闲鱼商品 ---
+            print(f"\n🐟 闲鱼二手 ({len(result.xianyu_items)} 件):")
+            for i, item in enumerate(result.xianyu_items, 1):
+                print(f"  [{i}] {item.title}")
+                print(f"      价格: ¥{item.price}  |  成色: {item.condition or '未知'}  |  信誉: {item.seller_credit or 'N/A'}")
+                print(f"      卖家: {item.seller_nickname or 'N/A'}  |  位置: {item.location or 'N/A'}")
+
+            # --- 分析结果 ---
+            ana = result.analysis
+            print(f"\n📊 性价比分析:")
+            print(f"  市场均价: ¥{ana.market_summary.avg_used_price}")
+            print(f"  价格区间: ¥{ana.market_summary.price_range.get('min', 0)} ~ ¥{ana.market_summary.price_range.get('max', 0)}")
+            print(f"  在售数量: {ana.market_summary.total_listings}")
+            print(f"  整体建议: {ana.market_summary.recommendation}")
+
+            if ana.best_deal:
+                print(f"\n⭐ 最佳推荐:")
+                print(f"  {ana.best_deal.title}")
+                print(f"  价格: ¥{ana.best_deal.price}  |  新品: ¥{ana.best_deal.new_price}")
+                print(f"  折扣率: {ana.best_deal.discount_rate:.0%}  |  评分: {ana.best_deal.score}/100")
+                print(f"  理由: {ana.best_deal.reason}")
+
+            if ana.recommendations:
+                print(f"\n📋 推荐列表 (≥60分):")
+                for i, rec in enumerate(ana.recommendations, 1):
+                    print(f"  [{i}] {rec.title}")
+                    print(f"      ¥{rec.price} | 折扣{rec.discount_rate:.0%} | 评分{rec.score}/100")
+
+            print(f"\n📝 AI 综合结论:")
+            print(f"  {ana.verdict}")
+            print(f"\n{'=' * 60}")
+
+        except Exception as e:
+            elapsed = time.time() - t0
+            print(f"\n❌ 工作流失败 ({elapsed:.1f}s): {e}")
+            import traceback
+            traceback.print_exc()
+
+    asyncio.run(main())

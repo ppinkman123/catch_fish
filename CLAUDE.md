@@ -42,19 +42,26 @@ Finder   Encyclopedia    ← 两者并行执行（asyncio.gather）
    Calculator            ← 等待上游两个智能体完成后才执行
 ```
 
-- **Orchestrator**（编排器，`src/orchestrator/agent.py`）：LLM 将自然语言解析为 `ParsedIntent`（包含 product_name、brand、model、specs、budget、condition、location）。
-- **Finder**（搜寻器，`src/agents/finder/agent.py`）：调用闲鱼 MCP 搜索二手商品。当 MCP 客户端不可用时（开发模式），回退到 LLM 生成的模拟数据。
-- **Encyclopedia**（百科器，`src/agents/encyclopedia/agent.py`）：抓取京东/天猫的全新商品价格和规格，并通过 LLM 研究进行丰富。`scrapers.py` 中的抓取器以尽力而为模式返回数据；抓取失败不会中断整个工作流。
+- **Orchestrator**（编排器，`src/orchestrator/agent.py`）：LLM 将自然语言解析为 `ParsedIntent`（包含 product_name、brand、model、specs、budget、condition、location）。`execute()` 方法委托给 `parse_intent()`，满足 `BaseAgent` 抽象方法要求。
+- **Finder**（搜寻器，`src/agents/finder/agent.py`）：调用闲鱼 MCP 搜索二手商品。当 MCP 客户端不可用时（开发模式），回退到 LLM 生成的模拟数据。MCP 原始数据经 `_truncate_raw_results()` 截断后再发给 LLM 规范化——最多取 5 条、每条字段截断到 500 字，`max_tokens=8192`，防止响应被截断。
+- **Encyclopedia**（百科器，`src/agents/encyclopedia/agent.py`）：纯 LLM 方案，依靠模型训练数据提供新品规格、价格、口碑，无需爬虫。
 - **Calculator**（计算器，`src/agents/calculator/agent.py`）：两阶段分析——首先使用确定性规则引擎（`scoring.py`）对每个商品打分，然后由 LLM 进行定性深度分析并撰写最终结论。规则引擎提供底线评分，LLM 负责补充细节。
+- **CatchFishWorkflow**（工作流引擎，`src/orchestrator/workflow.py`）：`__init__` 接受可选的 `mcp_client` 参数并透传给 `FinderAgent`。各 Agent 的 `__main__` 测试块均遵循相同模式：有 Cookie 则创建 `XianyuMCPServer` 走真实搜索，无则 `None` 走模拟数据。
 
 ## 智能体基类
 
 所有智能体均继承 `BaseAgent`（`src/agents/base.py`），该基类提供：
 - 延迟初始化 `AsyncOpenAI` 客户端（从配置中读取 `DEEPSEEK_API_KEY`，兼容 DeepSeek / OpenAI API）
-- `ask_llm()` — 返回原始文本，带自动重试（使用 tenacity 库）
-- `ask_llm_json()` — 调用 `ask_llm()` 后从响应中提取 JSON（能处理 ```json 代码块和裸 JSON 对象）
+- `ask_llm()` — 返回原始文本，带自动重试（使用 tenacity 库），支持 `max_tokens` 参数覆盖默认值
+- `ask_llm_json()` — 调用 `ask_llm()` 后从响应中提取 JSON（能处理 ```json 代码块和裸 JSON 对象，空响应时抛出明确错误）
 - 抽象方法 `execute(**kwargs) -> Any`，每个智能体必须实现
 - 抽象方法 `system_prompt() -> str`，每个智能体必须重写
+
+### LLM 响应被截断的常见原因
+
+当 LLM 需要输出大量结构化 JSON（如 Finder 规范化多条商品）时，默认 `deepseek_max_tokens=4096` 可能不够：
+- **症状**：`Unterminated string` / `Expecting value: line 1 column 1 (char 0)` / 空响应
+- **修复**：调用 `ask_llm_json()` 时传入更大的 `max_tokens`（如 `max_tokens=8192`）；同时减少输入数据量（截断条数、字段长度）
 
 ## 评分引擎（基于规则，无需 LLM）
 

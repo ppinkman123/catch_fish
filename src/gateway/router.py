@@ -26,6 +26,7 @@ from src.models.schemas import (
     SearchStatusResponse,
     TaskProgress,
 )
+from src.config import settings
 from src.orchestrator.workflow import CatchFishWorkflow
 from src.utils.logger import get_logger
 
@@ -33,8 +34,18 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["catch_fish"])
 
-# 工作流实例
-workflow_engine = CatchFishWorkflow()
+# 工作流实例（有 Cookie 则使用真实闲鱼搜索）
+_mcp_client = None
+if settings.xianyu_cookie:
+    try:
+        from src.mcp.xianyu_server import XianyuMCPServer
+        _mcp_client = XianyuMCPServer(cookie=settings.xianyu_cookie)
+        logger.info("已配置闲鱼 MCP 客户端，使用真实搜索")
+    except Exception as e:
+        logger.warning(f"闲鱼 MCP 客户端初始化失败: {e}，回退到模拟数据")
+else:
+    logger.info("XIANYU_COOKIE 未配置，Finder 将使用模拟数据")
+workflow_engine = CatchFishWorkflow(mcp_client=_mcp_client)
 
 # 内存结果缓存（生产环境应使用 Redis）
 _results_cache: dict[str, SearchResultResponse] = {}

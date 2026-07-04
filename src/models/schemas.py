@@ -124,6 +124,7 @@ class EncyclopediaResult(BaseModel):
     brand: Optional[str] = None
     model: Optional[str] = None
     specs: dict[str, str] = Field(default_factory=dict)
+    origin: Optional[str] = None
     new_prices: list[ChannelPrice] = Field(default_factory=list)
     lowest_new_price: Optional[float] = None
     release_date: Optional[str] = None

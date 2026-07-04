@@ -131,20 +131,27 @@ class FinderAgent(BaseAgent):
         budget_max: float,
     ) -> list[XianyuItemOut]:
         """用 LLM 规范化原始搜索结果"""
-        # DEBUG: 打印 MCP 发给 LLM 的原始数据
-        self.logger.debug(f"MCP 原始搜索结果 ({len(raw_results)} 条): {json.dumps(raw_results, ensure_ascii=False, indent=2)}")
+        self.logger.info(f"MCP 原始搜索结果 ({len(raw_results)} 条)")
+
+        # 截断过大的数据，避免超出 LLM token 限制
+        truncated = self._truncate_raw_results(raw_results, max_items=5)
+        if len(truncated) < len(raw_results):
+            self.logger.warning(f"原始数据过多，截断 {len(raw_results)} → {len(truncated)} 条")
 
         prompt = FINDER_ANALYZE_PROMPT.format(
             keyword=keyword,
-            raw_results=raw_results,
+            raw_results=json.dumps(truncated, ensure_ascii=False, indent=2),
             budget_min=budget_min,
             budget_max=budget_max,
         )
+
+        self.logger.debug(f"LLM 规范化 prompt 长度: {len(prompt)} 字符")
 
         try:
             data = await self.ask_llm_json(
                 user_message=prompt,
                 system_prompt=self.system_prompt(),
+                max_tokens=8192,  # 规范化多条商品需要较大输出
             )
             items = []
             for item in data.get("items", []):
@@ -166,6 +173,29 @@ class FinderAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"LLM 整理结果失败: {e}")
             return []
+
+    @staticmethod
+    def _truncate_raw_results(raw_results: list[dict], max_items: int = 10) -> list[dict]:
+        """截断原始搜索结果，对每条只保留关键字段，避免 prompt 过大"""
+        key_fields = {
+            "xianyu_item_id", "title", "description", "price", "original_price",
+            "tags", "images", "location", "seller_nickname", "seller_info",
+            "listing_url", "listed_time",
+        }
+        trimmed = []
+        for item in raw_results[:max_items]:
+            entry = {}
+            for k, v in item.items():
+                if k in key_fields:
+                    # 截断过长的字符串字段
+                    if isinstance(v, str) and len(v) > 500:
+                        entry[k] = v[:500] + "..."
+                    elif isinstance(v, list) and len(v) > 10:
+                        entry[k] = v[:10]
+                    else:
+                        entry[k] = v
+            trimmed.append(entry)
+        return trimmed
 
     async def _fallback_search(self, product_name: str) -> list[XianyuItemOut]:
         """无 MCP 时的模拟搜索（开发调试用）"""
