@@ -91,7 +91,49 @@ Finder   Encyclopedia    ← 两者并行执行（asyncio.gather）
 
 ## 闲鱼 MCP 服务器
 
-`src/mcp/xianyu_server.py` 是一个使用官方 `mcp` 包构建的 MCP 服务器骨架。注册了三个工具（`search_items`、`get_item_detail`、`get_seller_info`），但目前均返回占位数据。`_handle_search_items` 中的 `TODO` 标记指明了需要接入真实闲鱼 API 的位置。`src/mcp/tools.py` 定义了工具的模式（Pydantic 输入模型 + MCP Tool 定义）。
+`src/mcp/xianyu_server.py` 逆向闲鱼 MTOP API，实现三个工具：`search_items`、`get_item_detail`、`get_seller_info`。
+
+### MTOP 签名机制
+
+闲鱼后端使用淘系 MTOP（Mobile Taobao Open Platform）网关。每次 API 调用需要：
+
+1. 从 Cookie 取 `_m_h5_tk` 前 32 位作为 token
+2. 签名串：`token & UTC毫秒时间戳 & APP_KEY(34839810) & 请求体JSON`
+3. MD5 后作为 `sign` 参数附加到 GET 请求
+
+相关函数：`_extract_token()`、`_make_sign()`、`_utc_timestamp_ms()`、`_call_mtop_api()`。
+
+### 响应解析
+
+MTOP 搜索接口返回结构为：
+
+```
+result.data.resultList[]                     # 商品列表
+    .data.item.main                          # 每个商品的核心数据
+        .title                               # 标题
+        .picUrl                              # 主图
+        .oriPrice                            # 原价（如 "¥39.90"）
+        .userNickName                        # 卖家昵称
+        .userFishShopLabel.tagList[].data.content  # 店铺评价/好评率
+        .clickParam.args.{id, price, seller_id, p_city, publishTime}  # 基础字段
+        .exContent.area                      # 发货地
+        .exContent.detailParams.title        # 完整描述（比 main.title 更长）
+        .exContent.fishTags.*.tagList[].data.content  # 商品标签（尺寸/成色/信用等）
+```
+
+`_parse_mtop_search_result()` 负责原样提取上述字段，**不做品类识别、品牌猜测、属性分类**——这些留给上游 LLM。
+
+### 直接测试
+
+文件顶部 `sys.path.insert()` 确保可以直接执行：
+
+```bash
+python src/mcp/xianyu_server.py "卡西欧"
+```
+
+未传 Cookie 时 MTOP API 调用失败，返回空结果。配置好 `XIANYU_COOKIE` 后即可获取真实数据。
+
+`src/mcp/tools.py` 定义了工具的模式（Pydantic 输入模型 + MCP Tool 定义）。
 
 ## 配置
 
@@ -99,7 +141,7 @@ Finder   Encyclopedia    ← 两者并行执行（asyncio.gather）
 - `DEEPSEEK_API_KEY`（任何 LLM 调用必需）
 - `DATABASE_URL` / `DATABASE_URL_ASYNC`（MySQL，异步使用 `aiomysql` 驱动）
 - `REDIS_URL`（可选，尚未接入代码）
-- `XIANYU_COOKIE`（用于真实 API 访问，尚未使用）
+- `XIANYU_COOKIE`（闲鱼 MTOP API 签名必需，需包含 `_m_h5_tk`）
 
 ## 数据库（开发阶段可选）
 

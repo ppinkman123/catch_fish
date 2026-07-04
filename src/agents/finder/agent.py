@@ -11,6 +11,7 @@ Finder Agent — 闲鱼商品搜索
 # sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))  # → D:\code\catch_fish\
 
 
+import json
 from datetime import datetime
 
 from src.agents.base import BaseAgent
@@ -130,6 +131,9 @@ class FinderAgent(BaseAgent):
         budget_max: float,
     ) -> list[XianyuItemOut]:
         """用 LLM 规范化原始搜索结果"""
+        # DEBUG: 打印 MCP 发给 LLM 的原始数据
+        self.logger.debug(f"MCP 原始搜索结果 ({len(raw_results)} 条): {json.dumps(raw_results, ensure_ascii=False, indent=2)}")
+
         prompt = FINDER_ANALYZE_PROMPT.format(
             keyword=keyword,
             raw_results=raw_results,
@@ -150,8 +154,10 @@ class FinderAgent(BaseAgent):
                     price=float(item.get("price", 0)),
                     original_price=item.get("original_price"),
                     condition=item.get("condition"),
+                    seller_nickname=item.get("seller_nickname"),
                     seller_credit=item.get("seller_credit"),
                     location=item.get("location"),
+                    tags=item.get("tags", []),
                     images=item.get("images", []),
                     listing_url=item.get("listing_url"),
                     listed_time=item.get("listed_time"),
@@ -183,8 +189,10 @@ class FinderAgent(BaseAgent):
                     title=item.get("title", ""),
                     price=float(item.get("price", 0)),
                     condition=item.get("condition"),
+                    seller_nickname=item.get("seller_nickname"),
                     seller_credit=item.get("seller_credit"),
                     location=item.get("location"),
+                    tags=item.get("tags", []),
                     listing_url=item.get("listing_url"),
                 ))
             return items
@@ -193,6 +201,41 @@ class FinderAgent(BaseAgent):
 
 
 if __name__ == '__main__':
+    import asyncio
+    import sys
+
+    from src.config import settings
     from src.mcp.xianyu_server import XianyuMCPServer
-    fa = FinderAgent(mcp_client = XianyuMCPServer)
-    print(fa.mcp)
+
+    async def main():
+        keyword = sys.argv[1] if len(sys.argv) > 1 else "iPhone 15"
+
+        # ---- 有 Cookie → 真实搜索；无 Cookie → 模拟数据 ----
+        cookie = settings.xianyu_cookie
+        if cookie:
+            mcp = XianyuMCPServer(cookie=cookie)
+            print(f"[INFO] Cookie 已配置，使用真实闲鱼搜索")
+        else:
+            mcp = None
+            print(f"[INFO] Cookie 未配置，使用 LLM 模拟数据")
+
+        fa = FinderAgent(mcp_client=mcp)
+
+        print(f"{'=' * 60}")
+        print(f"FinderAgent 测试 — 搜索: {keyword}")
+        print(f"MCP 客户端: {'已连接' if mcp else '模拟模式'}")
+        print(f"{'=' * 60}\n")
+
+        result = await fa.execute(product_name=keyword, max_results=1)
+
+        print(f"\n搜索结果: 共 {result.total_count} 件商品\n")
+        for i, item in enumerate(result.items, 1):
+            print(f"  [{i}] {item.title}")
+            print(f"      价格: ¥{item.price}  |  原价: ¥{item.original_price or 'N/A'}")
+            print(f"      成色: {item.condition or '未知'}  |  信誉: {item.seller_credit or 'N/A'}")
+            print(f"      卖家: {item.seller_nickname or '未知'}  |  位置: {item.location or '未知'}")
+            if item.tags:
+                print(f"      标签: {', '.join(item.tags)}")
+            print()
+
+    asyncio.run(main())

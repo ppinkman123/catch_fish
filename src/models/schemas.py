@@ -89,8 +89,10 @@ class XianyuItemOut(BaseModel):
     price: float
     original_price: Optional[float] = None
     condition: Optional[str] = None
+    seller_nickname: Optional[str] = None
     seller_credit: Optional[int] = None
     location: Optional[str] = None
+    tags: list[str] = Field(default_factory=list)
     images: list[str] = Field(default_factory=list)
     listing_url: Optional[str] = None
     listed_time: Optional[datetime] = None
