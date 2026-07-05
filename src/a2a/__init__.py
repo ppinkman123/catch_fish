@@ -2,8 +2,10 @@
 A2A (Agent-to-Agent) — 将单体 Agent 拆分为独立服务
 
 架构:
-  server.py  — 把 BaseAgent 包成 FastAPI app，暴露 POST /execute + GET /agent-card
-  client.py  — 异步 HTTP 客户端，调用远程 Agent 并自动序列化/反序列化 Pydantic 模型
+  server.py     — 把 BaseAgent 包成 FastAPI app，暴露 POST /execute + GET /agent-card
+  client.py     — 异步 HTTP 客户端，调用远程 Agent 并自动序列化/反序列化 Pydantic 模型
+  agent_apps.py — 为每个 Agent 创建独立 FastAPI app 的工厂函数
+  launcher.py   — 多进程启动器，管理所有 Agent 服务进程
 
 用法:
   # 服务端：每个 Agent 一个进程
@@ -16,6 +18,15 @@ A2A (Agent-to-Agent) — 将单体 Agent 拆分为独立服务
   client.register("finder", "http://localhost:8001")
   data = await client.call_agent("finder", product_name="劳力士")
   result = FinderResult(**data)
+
+  # 启动所有 Agent 服务
+  python -m src.a2a.launcher
+
+  # 启动 Gateway（A2A 模式）
+  python -m src.main
+
+  # 启动 Gateway（单进程模式）
+  python -m src.main --standalone
 """
 
 from src.a2a.server import create_agent_app

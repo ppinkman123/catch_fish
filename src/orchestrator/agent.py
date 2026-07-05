@@ -110,6 +110,61 @@ class OrchestratorAgent(BaseAgent):
             return ParsedIntent(product_name=user_query)
 
 
+class WorkflowAgent(BaseAgent):
+    """
+    工作流编排 Agent — 将 CatchFishWorkflow 包装为标准 BaseAgent
+
+    作为 A2A 服务运行时，其他 Agent（Gateway）通过 HTTP 调用此 Agent。
+    内部使用 CatchFishWorkflow 执行完整搜索流程：
+    意图解析 → 并行搜索(Finder + Encyclopedia) → 性价比计算(Calculator) → 汇总
+
+    支持两种子 Agent 调用模式：
+      - A2A 模式：通过 A2AClient 调用远程 Finder/Encyclopedia/Calculator
+      - 直接模式：进程内直接调用（开发/测试用）
+    """
+
+    agent_id = "workflow"
+    agent_name = "工作流编排Agent"
+
+    def __init__(self, mcp_client=None, a2a_client=None):
+        """
+        Args:
+            mcp_client: 闲鱼 MCP 客户端（可选）
+            a2a_client: A2A 客户端（可选，传入后 Workflow 通过 HTTP 调用子 Agent）
+        """
+        super().__init__()
+        from src.orchestrator.workflow import CatchFishWorkflow
+        self._workflow = CatchFishWorkflow(
+            mcp_client=mcp_client,
+            a2a_client=a2a_client,
+        )
+
+    def system_prompt(self) -> str:
+        return "你是一个工作流编排器，负责协调 Finder、Encyclopedia、Calculator 三个 Agent 完成商品性价比分析。"
+
+    async def execute(
+        self,
+        search_id: str,
+        user_query: str,
+        **kwargs,
+    ) -> "SearchResultResponse":
+        """
+        执行完整搜索工作流
+
+        Args:
+            search_id: 搜索任务 ID
+            user_query: 用户原始查询
+
+        Returns:
+            SearchResultResponse: 完整的性价比分析结果
+        """
+        from src.models.schemas import SearchResultResponse
+        return await self._workflow.execute(
+            search_id=search_id,
+            user_query=user_query,
+        )
+
+
 if __name__ == '__main__':
     import asyncio
     import sys

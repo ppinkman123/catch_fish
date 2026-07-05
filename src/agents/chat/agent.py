@@ -49,8 +49,14 @@ class ChatAgent(BaseAgent):
     agent_id = "chat"
     agent_name = "对话Agent"
 
-    def __init__(self):
+    def __init__(self, a2a_client=None):
+        """
+        Args:
+            a2a_client: A2A 客户端（可选，传入后 ChatAgent 通过 HTTP 调用 Workflow）
+        """
         super().__init__()
+        self._a2a_client = a2a_client
+
         mcp_client = None
         if settings.xianyu_cookie:
             try:
@@ -61,7 +67,13 @@ class ChatAgent(BaseAgent):
                 logger.warning(f"闲鱼 MCP 客户端初始化失败: {e}，回退到模拟数据")
         else:
             logger.info("XIANYU_COOKIE 未配置，Finder 将使用模拟数据")
-        self._workflow = CatchFishWorkflow(mcp_client=mcp_client)
+
+        if a2a_client is None:
+            # 直接模式：本地实例化 Workflow
+            self._workflow = CatchFishWorkflow(mcp_client=mcp_client)
+        else:
+            # A2A 模式：不需要本地 Workflow 实例
+            self._workflow = None
 
     def system_prompt(self) -> str:
         return CHAT_SYSTEM_PROMPT
@@ -205,10 +217,20 @@ class ChatAgent(BaseAgent):
             if on_progress:
                 await on_progress("searching", "正在闲鱼搜索二手商品...")
 
-            result = await self._workflow.execute(
-                search_id=session.session_id,
-                user_query=user_message,
-            )
+            if self._a2a_client:
+                # A2A 模式：通过 HTTP 调用 Workflow 服务
+                data = await self._a2a_client.call_agent(
+                    "workflow",
+                    search_id=session.session_id,
+                    user_query=user_message,
+                )
+                result = SearchResultResponse(**data)
+            else:
+                # 直接模式：本地调用
+                result = await self._workflow.execute(
+                    search_id=session.session_id,
+                    user_query=user_message,
+                )
 
             # 绑定到会话
             session.bind_search_result(user_message, result)

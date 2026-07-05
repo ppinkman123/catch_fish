@@ -103,15 +103,27 @@ class CatchFishWorkflow:
     Calculator 依赖前两者全部完成
     """
 
-    def __init__(self, mcp_client=None):
+    def __init__(self, mcp_client=None, a2a_client=None):
         """
         Args:
             mcp_client: 闲鱼 MCP 客户端（可选，不传则 Finder 使用 LLM 模拟数据）
+            a2a_client: A2A 客户端（可选，传入后通过 HTTP 调用子 Agent，
+                        不传则走进程内直接调用）
         """
-        self.orchestrator = OrchestratorAgent()
-        self.finder = FinderAgent(mcp_client=mcp_client)
-        self.encyclopedia = EncyclopediaAgent()
-        self.calculator = CalculatorAgent()
+        self._a2a_client = a2a_client
+
+        if a2a_client is None:
+            # 直接模式：本地实例化所有 Agent
+            self.orchestrator = OrchestratorAgent()
+            self.finder = FinderAgent(mcp_client=mcp_client)
+            self.encyclopedia = EncyclopediaAgent()
+            self.calculator = CalculatorAgent()
+        else:
+            # A2A 模式：不需要本地实例（但 Orchestrator 始终本地调用）
+            self.orchestrator = OrchestratorAgent()
+            self.finder = None
+            self.encyclopedia = None
+            self.calculator = None
 
     async def execute(self, search_id: str, user_query: str) -> SearchResultResponse:
         """
@@ -450,13 +462,24 @@ class CatchFishWorkflow:
         """Step 2a: 搜索闲鱼商品"""
         ctx.tasks["finder"].started_at = datetime.now()
         try:
-            return await self.finder.execute(
-                product_name=intent.product_name,
-                budget_min=intent.budget_min,
-                budget_max=intent.budget_max,
-                condition=intent.condition_preference or "all",
-                location=intent.location,
-            )
+            if self._a2a_client:
+                data = await self._a2a_client.call_agent(
+                    "finder",
+                    product_name=intent.product_name,
+                    budget_min=intent.budget_min,
+                    budget_max=intent.budget_max,
+                    condition=intent.condition_preference or "all",
+                    location=intent.location,
+                )
+                return FinderResult(**data)
+            else:
+                return await self.finder.execute(
+                    product_name=intent.product_name,
+                    budget_min=intent.budget_min,
+                    budget_max=intent.budget_max,
+                    condition=intent.condition_preference or "all",
+                    location=intent.location,
+                )
         except Exception as e:
             ctx.tasks["finder"].status = TaskStatus.FAILED
             ctx.tasks["finder"].error = str(e)
@@ -466,12 +489,22 @@ class CatchFishWorkflow:
         """Step 2b: 采集商品百科"""
         ctx.tasks["encyclopedia"].started_at = datetime.now()
         try:
-            return await self.encyclopedia.execute(
-                product_name=intent.product_name,
-                brand=intent.brand,
-                model=intent.model,
-                specs=intent.specs,
-            )
+            if self._a2a_client:
+                data = await self._a2a_client.call_agent(
+                    "encyclopedia",
+                    product_name=intent.product_name,
+                    brand=intent.brand,
+                    model=intent.model,
+                    specs=intent.specs,
+                )
+                return EncyclopediaResult(**data)
+            else:
+                return await self.encyclopedia.execute(
+                    product_name=intent.product_name,
+                    brand=intent.brand,
+                    model=intent.model,
+                    specs=intent.specs,
+                )
         except Exception as e:
             ctx.tasks["encyclopedia"].status = TaskStatus.FAILED
             ctx.tasks["encyclopedia"].error = str(e)
@@ -481,10 +514,18 @@ class CatchFishWorkflow:
         """Step 3: 计算性价比"""
         ctx.tasks["calculator"].started_at = datetime.now()
         try:
-            return await self.calculator.execute(
-                finder_result=ctx.finder_result,
-                encyclopedia_result=ctx.encyclopedia_result,
-            )
+            if self._a2a_client:
+                data = await self._a2a_client.call_agent(
+                    "calculator",
+                    finder_result=ctx.finder_result,
+                    encyclopedia_result=ctx.encyclopedia_result,
+                )
+                return CalculatorResult(**data)
+            else:
+                return await self.calculator.execute(
+                    finder_result=ctx.finder_result,
+                    encyclopedia_result=ctx.encyclopedia_result,
+                )
         except Exception as e:
             ctx.tasks["calculator"].status = TaskStatus.FAILED
             ctx.tasks["calculator"].error = str(e)

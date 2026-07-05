@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["catch_fish"])
 
-# 工作流实例（有 Cookie 则使用真实闲鱼搜索）
+# MCP 客户端（有 Cookie 则使用真实闲鱼搜索）
 _mcp_client = None
 if settings.xianyu_cookie:
     try:
@@ -45,7 +45,25 @@ if settings.xianyu_cookie:
         logger.warning(f"闲鱼 MCP 客户端初始化失败: {e}，回退到模拟数据")
 else:
     logger.info("XIANYU_COOKIE 未配置，Finder 将使用模拟数据")
-workflow_engine = CatchFishWorkflow(mcp_client=_mcp_client)
+
+# A2A 客户端（A2A 模式下初始化）
+_a2a_client = None
+if settings.a2a_enabled:
+    try:
+        from src.a2a.client import A2AClient
+        _a2a_client = A2AClient()
+        _a2a_client.register("finder", settings.a2a_finder_url)
+        _a2a_client.register("encyclopedia", settings.a2a_encyclopedia_url)
+        _a2a_client.register("calculator", settings.a2a_calculator_url)
+        logger.info(
+            f"A2A 模式已启用 — Finder: {settings.a2a_finder_url}, "
+            f"Encyclopedia: {settings.a2a_encyclopedia_url}, "
+            f"Calculator: {settings.a2a_calculator_url}"
+        )
+    except Exception as e:
+        logger.warning(f"A2A 客户端初始化失败: {e}，回退到直接调用模式")
+
+workflow_engine = CatchFishWorkflow(mcp_client=_mcp_client, a2a_client=_a2a_client)
 
 # 内存结果缓存（生产环境应使用 Redis）
 _results_cache: dict[str, SearchResultResponse] = {}

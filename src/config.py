@@ -153,6 +153,28 @@ class Settings:
         val = self._get("SCRAPER_PROXY", "")
         return val if val else None
 
+    # ---- A2A Agent 服务地址 ----
+    @property
+    def a2a_enabled(self) -> bool:
+        """是否启用 A2A 分布式模式（False 时走进程内直接调用）"""
+        return self._get_bool("A2A_ENABLED", True)
+
+    @property
+    def a2a_workflow_url(self) -> str:
+        return self._get("A2A_WORKFLOW_URL", "http://localhost:8001")
+
+    @property
+    def a2a_finder_url(self) -> str:
+        return self._get("A2A_FINDER_URL", "http://localhost:8002")
+
+    @property
+    def a2a_encyclopedia_url(self) -> str:
+        return self._get("A2A_ENCYCLOPEDIA_URL", "http://localhost:8003")
+
+    @property
+    def a2a_calculator_url(self) -> str:
+        return self._get("A2A_CALCULATOR_URL", "http://localhost:8004")
+
     # ---- 环境判断 ----
     @property
     def is_development(self) -> bool:
