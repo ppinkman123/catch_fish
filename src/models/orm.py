@@ -68,6 +68,7 @@ class XianyuItem(Base):
     price: Mapped[float | None] = mapped_column(Numeric(10, 2), comment="售价")
     original_price: Mapped[float | None] = mapped_column(Numeric(10, 2), comment="原价")
     condition: Mapped[str | None] = mapped_column(String(50), comment="成色")
+    seller_nickname: Mapped[str | None] = mapped_column(String(100), comment="卖家昵称")
     seller_credit: Mapped[int | None] = mapped_column(Integer, comment="卖家信用分")
     location: Mapped[str | None] = mapped_column(String(100), comment="发货地")
     images: Mapped[list | None] = mapped_column(JSON, comment="图片URL列表")

@@ -102,6 +102,7 @@ class CalculatorAgent(BaseAgent):
                 reason=f"综合评分{best['score_data']['score']}分",
                 listing_url=best["item"].listing_url,
                 condition=best["item"].condition,
+                seller_nickname=best["item"].seller_nickname,
             )
 
         # Step 5: 构建推荐列表（评分 ≥ 60 的前 5 个）
@@ -117,6 +118,7 @@ class CalculatorAgent(BaseAgent):
                     reason=rs["score_data"]["verdict_short"],
                     listing_url=rs["item"].listing_url,
                     condition=rs["item"].condition,
+                    seller_nickname=rs["item"].seller_nickname,
                 ))
 
         # 市场总结
@@ -140,8 +142,16 @@ class CalculatorAgent(BaseAgent):
 
         self.logger.info(
             f"性价比分析完成: 最佳={best_deal.score if best_deal else 'N/A'}分, "
-            f"建议={rec}"
+            f"建议={rec}, 共分析{len(recommendations)}件商品"
         )
+        for i, r in enumerate(recommendations, 1):
+            self.logger.info(
+                f"  [{i}] {r.title} | ¥{r.price} | "
+                f"卖家={r.seller_nickname or '未知'} | "
+                f"成色={r.condition or '未知'} | "
+                f"评分={r.score}分 | "
+                f"结论={r.reason[:60] if r.reason else 'N/A'}"
+            )
 
         return CalculatorResult(
             best_deal=best_deal,

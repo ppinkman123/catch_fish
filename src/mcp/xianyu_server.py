@@ -17,6 +17,7 @@ import hashlib
 import json
 import re
 import time
+import traceback
 from typing import Any
 
 import httpx
@@ -224,8 +225,8 @@ class XianyuMCPServer:
         async def _do_request(clt: httpx.AsyncClient) -> dict[str, Any] | None:
             try:
                 resp = await clt.get(url, params=params, headers=headers, timeout=15.0)
-                # logger.info(f"[调试] HTTP 状态: {resp.status_code}, 响应长度: {len(resp.text)}")
-                # logger.info(f"[调试] 完整响应: {resp.text[:1000]}")
+                logger.info(f"[调试] HTTP 状态: {resp.status_code}, 响应长度: {len(resp.text)}")
+                logger.info(f"[调试] 完整响应: {resp.text[:1000]}")
                 data = resp.json()
 
                 # 检测 MTOP 网关错误：格式1 - 顶层 list 如 ["FAIL_xxx::reason"]
@@ -246,7 +247,8 @@ class XianyuMCPServer:
 
                 return data
             except Exception as e:
-                logger.error(f"MTOP 请求失败: {e}")
+                logger.error(f"MTOP 请求失败: {type(e).__name__}: {e}")
+                logger.error(f"详细堆栈:\n{traceback.format_exc()}")
                 return None
 
         if client is not None:

@@ -43,7 +43,7 @@ class FinderAgent(BaseAgent):
         budget_max: float | None = None,
         condition: str = "all",
         location: str | None = None,
-        max_results: int = 20,
+        max_results: int = 5,
     ) -> FinderResult:
         """
         执行商品搜索
@@ -133,6 +133,12 @@ class FinderAgent(BaseAgent):
         """用 LLM 规范化原始搜索结果"""
         self.logger.info(f"MCP 原始搜索结果 ({len(raw_results)} 条)")
 
+        # 输出原始搜索结果详情
+        for i, item in enumerate(raw_results, 1):
+            self.logger.info(
+                f"  原始第{i}条: {json.dumps(item, ensure_ascii=False, default=str)}"
+            )
+
         # 截断过大的数据，避免超出 LLM token 限制
         truncated = self._truncate_raw_results(raw_results, max_items=5)
         if len(truncated) < len(raw_results):
@@ -158,7 +164,7 @@ class FinderAgent(BaseAgent):
                 items.append(XianyuItemOut(
                     xianyu_item_id=item.get("xianyu_item_id"),
                     title=item.get("title", ""),
-                    price=float(item.get("price", 0)),
+                    price=float(item.get("price") or 0),
                     original_price=item.get("original_price"),
                     condition=item.get("condition"),
                     seller_nickname=item.get("seller_nickname"),
@@ -217,7 +223,7 @@ class FinderAgent(BaseAgent):
             for item in data.get("items", []):
                 items.append(XianyuItemOut(
                     title=item.get("title", ""),
-                    price=float(item.get("price", 0)),
+                    price=float(item.get("price") or 0),
                     condition=item.get("condition"),
                     seller_nickname=item.get("seller_nickname"),
                     seller_credit=item.get("seller_credit"),

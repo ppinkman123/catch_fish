@@ -58,7 +58,7 @@ class Settings:
     @property
     def app_env(self) -> str:         return self._get("APP_ENV", "development")
     @property
-    def app_debug(self) -> bool:      return self._get_bool("APP_DEBUG", True)
+    def app_debug(self) -> bool:      return self._get_bool("APP_DEBUG", False)
     @property
     def log_level(self) -> str:       return self._get("LOG_LEVEL", "INFO")
 

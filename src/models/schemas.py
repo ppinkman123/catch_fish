@@ -148,6 +148,7 @@ class Recommendation(BaseModel):
     reason: str
     listing_url: Optional[str] = None
     condition: Optional[str] = None
+    seller_nickname: Optional[str] = None
 
 
 class MarketSummary(BaseModel):

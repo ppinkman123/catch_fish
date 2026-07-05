@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS xianyu_items (
     title           VARCHAR(500) COMMENT '商品标题',
     price           DECIMAL(10,2) COMMENT '售价',
     original_price  DECIMAL(10,2) COMMENT '原价标价',
+    seller_nickname VARCHAR(100) COMMENT '卖家昵称',
     `condition`     VARCHAR(50)  COMMENT '成色',
     seller_credit   INT          COMMENT '卖家信用分',
     location        VARCHAR(100) COMMENT '发货地',

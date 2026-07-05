@@ -64,7 +64,7 @@ class EncyclopediaAgent(BaseAgent):
             new_prices=[
                 ChannelPrice(
                     channel=p.get("channel", "unknown"),
-                    price=p.get("price", 0),
+                    price=float(p.get("price") or 0),
                     url=p.get("url"),
                     in_stock=p.get("in_stock", True),
                 )
@@ -111,7 +111,12 @@ class EncyclopediaAgent(BaseAgent):
     @staticmethod
     def _find_lowest(prices: list[dict]) -> float | None:
         """找出最低在售价格"""
-        valid = [p.get("price") for p in prices if p.get("price") and p.get("in_stock", True)]
+        valid = [
+            p.get("price") for p in prices
+            if p.get("price") is not None
+            and float(p.get("price")) > 0
+            and p.get("in_stock", True)
+        ]
         return min(valid) if valid else None
 
 
