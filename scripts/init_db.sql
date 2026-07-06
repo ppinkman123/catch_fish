@@ -1,19 +1,15 @@
--- ============================================================
--- catch_fish 数据库初始化脚本
--- MySQL 8.0+
--- 当 Docker 容器首次启动时自动执行
--- ============================================================
+/* ============================================================
+   catch_fish 数据库初始化脚本
+   MySQL 8.0+
+   当 Docker 容器首次启动时自动执行
+   手动执行: 先选中 catch_fish 数据库，再执行本脚本
+   ============================================================ */
 
--- 创建数据库（如果不存在）
 CREATE DATABASE IF NOT EXISTS catch_fish
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
 
-USE catch_fish;
-
--- -----------------------------------------------------------
--- 1. 搜索记录表
--- -----------------------------------------------------------
+/* ==================== 1. 搜索记录表 ==================== */
 CREATE TABLE IF NOT EXISTS search_log (
     id            BIGINT AUTO_INCREMENT PRIMARY KEY,
     session_id    VARCHAR(64)  NOT NULL COMMENT '会话ID',
@@ -27,9 +23,7 @@ CREATE TABLE IF NOT EXISTS search_log (
     INDEX idx_status_created (status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='搜索记录表';
 
--- -----------------------------------------------------------
--- 2. 闲鱼商品快照表
--- -----------------------------------------------------------
+/* ==================== 2. 闲鱼商品快照表 ==================== */
 CREATE TABLE IF NOT EXISTS xianyu_items (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     search_id       BIGINT       NOT NULL COMMENT '关联 search_log.id',
@@ -37,6 +31,7 @@ CREATE TABLE IF NOT EXISTS xianyu_items (
     title           VARCHAR(500) COMMENT '商品标题',
     price           DECIMAL(10,2) COMMENT '售价',
     original_price  DECIMAL(10,2) COMMENT '原价标价',
+    seller_nickname VARCHAR(100) COMMENT '卖家昵称',
     `condition`     VARCHAR(50)  COMMENT '成色',
     seller_credit   INT          COMMENT '卖家信用分',
     location        VARCHAR(100) COMMENT '发货地',
@@ -49,9 +44,7 @@ CREATE TABLE IF NOT EXISTS xianyu_items (
     CONSTRAINT fk_items_search FOREIGN KEY (search_id) REFERENCES search_log(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='闲鱼商品快照表';
 
--- -----------------------------------------------------------
--- 3. 商品百科缓存表
--- -----------------------------------------------------------
+/* ==================== 3. 商品百科缓存表 ==================== */
 CREATE TABLE IF NOT EXISTS product_cache (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     product_name    VARCHAR(300) NOT NULL COMMENT '商品名称',
@@ -69,9 +62,7 @@ CREATE TABLE IF NOT EXISTS product_cache (
     INDEX idx_expires (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品百科缓存表';
 
--- -----------------------------------------------------------
--- 4. 性价比分析结果表
--- -----------------------------------------------------------
+/* ==================== 4. 性价比分析结果表 ==================== */
 CREATE TABLE IF NOT EXISTS analysis_result (
     id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
     search_id           BIGINT NOT NULL COMMENT '关联 search_log.id',

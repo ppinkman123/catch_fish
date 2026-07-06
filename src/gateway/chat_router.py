@@ -22,6 +22,7 @@ from fastapi import APIRouter, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
 from src.agents.chat.agent import ChatAgent
+from src.config import settings
 from src.gateway.session import Session, session_manager
 from src.models.schemas import ChatRequest
 from src.utils.logger import get_logger
@@ -30,8 +31,19 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
 
+# 全局 A2A 客户端（A2A 模式下初始化）
+_a2a_client = None
+if settings.a2a_enabled:
+    try:
+        from src.a2a.client import A2AClient
+        _a2a_client = A2AClient()
+        _a2a_client.register("workflow", settings.a2a_workflow_url)
+        logger.info(f"A2A 模式已启用 — Workflow: {settings.a2a_workflow_url}")
+    except Exception as e:
+        logger.warning(f"A2A 客户端初始化失败: {e}，回退到直接调用模式")
+
 # 全局 Chat Agent
-chat_agent = ChatAgent()
+chat_agent = ChatAgent(a2a_client=_a2a_client)
 
 
 @router.post("/chat")

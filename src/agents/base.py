@@ -134,14 +134,16 @@ class BaseAgent(ABC):
             pass
 
         # 尝试从 markdown 代码块中提取
-        if "```json" in text:
-            start = text.index("```json") + 7
-            end = text.index("```", start)
-            text = text[start:end].strip()
-        elif "```" in text:
-            start = text.index("```") + 3
-            end = text.index("```", start)
-            text = text[start:end].strip()
+        for marker in ("```json", "```"):
+            if marker in text:
+                start = text.index(marker) + len(marker)
+                try:
+                    end = text.index("```", start)
+                except ValueError:
+                    # 没有结尾代码块，直接从 marker 后取到末尾
+                    end = len(text)
+                text = text[start:end].strip()
+                break
 
         try:
             return json.loads(text)

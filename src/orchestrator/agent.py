@@ -11,24 +11,24 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-ORCHESTRATOR_SYSTEM_PROMPT = """你是一个二手数码商品搜索的调度专家，服务于数码爱好者用户。
+ORCHESTRATOR_SYSTEM_PROMPT = """你是一个二手商品搜索的调度专家，服务意识强。
 
 ## 你的能力
 解析用户用自然语言描述的搜索需求，提取关键信息，拆解为可执行的子任务。
 
 ## 用户画像
-目标用户是数码爱好者，他们对数码产品的型号、规格非常了解，经常会搜索：
-- 手机：iPhone、华为、小米、三星等旗舰机型
-- 电脑：MacBook、ThinkPad、ROG 等
-- 相机：Sony A7、Canon R系列、DJI 无人机等
-- 智能穿戴：Apple Watch、AirPods 等
-- 游戏设备：Switch、PS5、Steam Deck 等
+目标用户会搜索各类商品，包括但不限于：
+- 数码产品：手机、电脑、相机、耳机等
+- 手表：劳力士、卡西欧、欧米茄等
+- 服装鞋履：品牌衣裤、球鞋、配饰等
+- 包袋：LV、Gucci、Chanel 等
+- 运动装备：高尔夫、滑雪、骑行等
 
 ## 意图提取要点
 1. **商品名称**：识别品牌 + 系列 + 具体型号
-2. **规格参数**：容量/内存/颜色/版本（国行/港版/美版）
+2. **规格参数**：容量/颜色/尺寸/版本（视品类灵活调整）
 3. **预算区间**：用户有无明确预算
-4. **成色偏好**：用户是否关心成色（全新未拆/99新/正常使用）
+4. **成色偏好**：用户是否关心成色（全新/几乎全新/正常使用）
 5. **地区偏好**：是否限定地区
 
 ## 输出格式
@@ -62,6 +62,15 @@ class OrchestratorAgent(BaseAgent):
 
     def system_prompt(self) -> str:
         return ORCHESTRATOR_SYSTEM_PROMPT
+
+    async def execute(self, user_query: str, **kwargs) -> ParsedIntent:
+        """
+        执行编排：解析用户意图
+
+        Args:
+            user_query: 用户原始查询
+        """
+        return await self.parse_intent(user_query)
 
     async def parse_intent(self, user_query: str) -> ParsedIntent:
         """
@@ -99,3 +108,91 @@ class OrchestratorAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"意图解析失败: {e}，使用原始查询")
             return ParsedIntent(product_name=user_query)
+
+
+class WorkflowAgent(BaseAgent):
+    """
+    工作流编排 Agent — 将 CatchFishWorkflow 包装为标准 BaseAgent
+
+    作为 A2A 服务运行时，其他 Agent（Gateway）通过 HTTP 调用此 Agent。
+    内部使用 CatchFishWorkflow 执行完整搜索流程：
+    意图解析 → 并行搜索(Finder + Encyclopedia) → 性价比计算(Calculator) → 汇总
+
+    支持两种子 Agent 调用模式：
+      - A2A 模式：通过 A2AClient 调用远程 Finder/Encyclopedia/Calculator
+      - 直接模式：进程内直接调用（开发/测试用）
+    """
+
+    agent_id = "workflow"
+    agent_name = "工作流编排Agent"
+
+    def __init__(self, mcp_client=None, a2a_client=None):
+        """
+        Args:
+            mcp_client: 闲鱼 MCP 客户端（可选）
+            a2a_client: A2A 客户端（可选，传入后 Workflow 通过 HTTP 调用子 Agent）
+        """
+        super().__init__()
+        from src.orchestrator.workflow import CatchFishWorkflow
+        self._workflow = CatchFishWorkflow(
+            mcp_client=mcp_client,
+            a2a_client=a2a_client,
+        )
+
+    def system_prompt(self) -> str:
+        return "你是一个工作流编排器，负责协调 Finder、Encyclopedia、Calculator 三个 Agent 完成商品性价比分析。"
+
+    async def execute(
+        self,
+        search_id: str,
+        user_query: str,
+        **kwargs,
+    ) -> "SearchResultResponse":
+        """
+        执行完整搜索工作流
+
+        Args:
+            search_id: 搜索任务 ID
+            user_query: 用户原始查询
+
+        Returns:
+            SearchResultResponse: 完整的性价比分析结果
+        """
+        from src.models.schemas import SearchResultResponse
+        return await self._workflow.execute(
+            search_id=search_id,
+            user_query=user_query,
+        )
+
+
+if __name__ == '__main__':
+    import asyncio
+    import sys
+
+    async def main():
+        queries = sys.argv[1:] if len(sys.argv) > 1 else [
+            "帮我看看 iPhone 15 Pro 256G 国行 深空黑 二手值得入手吗",
+            "劳力士黑冰糖 预算2-3万",
+            "Nike Air Force 1 42码 全新",
+            "LV Neverfull 中号 二手大概多少钱",
+        ]
+
+        oa = OrchestratorAgent()
+
+        for query in queries:
+            print(f"{'=' * 50}")
+            print(f"用户: {query}")
+            print(f"{'=' * 50}")
+
+            intent = await oa.parse_intent(query)
+
+            print(f"  商品: {intent.product_name}")
+            print(f"  品牌: {intent.brand or 'N/A'}  |  型号: {intent.model or 'N/A'}")
+            if intent.specs:
+                print(f"  规格: {intent.specs}")
+            print(f"  预算: {intent.budget_min or '不限'} ~ {intent.budget_max or '不限'}")
+            print(f"  成色: {intent.condition_preference or '不限'}")
+            print(f"  地区: {intent.location or '不限'}")
+            print()
+
+    asyncio.run(main())

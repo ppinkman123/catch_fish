@@ -1,6 +1,6 @@
 """
 Encyclopedia Agent — 商品百科信息采集
-从多个数据源获取新品规格、价格、口碑信息
+纯 LLM 方案：依靠模型训练数据提供新品规格、价格、口碑，无需爬虫
 """
 
 from datetime import datetime
@@ -10,12 +10,11 @@ from src.agents.encyclopedia.prompts import (
     ENCYCLOPEDIA_RESEARCH_PROMPT,
     ENCYCLOPEDIA_SYSTEM_PROMPT,
 )
-from src.agents.encyclopedia.scrapers import SCRAPERS
 from src.models.schemas import ChannelPrice, EncyclopediaResult
 
 
 class EncyclopediaAgent(BaseAgent):
-    """商品百科信息采集 Agent"""
+    """商品百科信息采集 Agent（纯 LLM，无爬虫）"""
 
     agent_id = "encyclopedia"
     agent_name = "商品百科Agent"
@@ -44,19 +43,14 @@ class EncyclopediaAgent(BaseAgent):
         """
         self.logger.info(f"开始采集商品信息: {product_name}, 品牌={brand}, 型号={model}")
 
-        # Step 1: 并行抓取各渠道价格
-        prices = await self._fetch_prices(product_name)
-
-        # Step 2: 用 LLM 整合和完善信息
+        # LLM 直接输出所有信息（价格、规格、上市时间、产地等）
         research_data = await self._research(
             product_name=product_name,
             brand=brand or "",
             model=model or "",
             specs=specs or {},
-            scraped_prices=prices,
         )
 
-        # Step 3: 计算最低全新价
         lowest = self._find_lowest(research_data.get("new_prices", []))
 
         self.logger.info(f"商品信息采集完成: {product_name}, 最低新品价={lowest}")
@@ -66,10 +60,11 @@ class EncyclopediaAgent(BaseAgent):
             brand=research_data.get("brand", brand),
             model=research_data.get("model", model),
             specs=research_data.get("specs", specs or {}),
+            origin=research_data.get("origin"),
             new_prices=[
                 ChannelPrice(
                     channel=p.get("channel", "unknown"),
-                    price=p.get("price", 0),
+                    price=float(p.get("price") or 0),
                     url=p.get("url"),
                     in_stock=p.get("in_stock", True),
                 )
@@ -83,37 +78,20 @@ class EncyclopediaAgent(BaseAgent):
             fetched_at=datetime.now(),
         )
 
-    async def _fetch_prices(self, product_name: str) -> list[dict]:
-        """从各渠道抓取价格"""
-        results = []
-        for name, scraper in SCRAPERS.items():
-            try:
-                data = await scraper.search(product_name)
-                if data:
-                    results.append(data)
-                self.logger.debug(f"{name} 抓取完成: price={data.get('price')}")
-            except Exception as e:
-                self.logger.warning(f"{name} 抓取失败: {e}")
-        return results
-
     async def _research(
         self,
         product_name: str,
         brand: str,
         model: str,
         specs: dict[str, str],
-        scraped_prices: list[dict],
     ) -> dict:
-        """用 LLM 进行深度商品研究"""
+        """LLM 直接输出商品研究结果"""
         prompt = ENCYCLOPEDIA_RESEARCH_PROMPT.format(
             product_name=product_name,
             brand=brand,
             model=model,
             specs=specs,
         )
-
-        if scraped_prices:
-            prompt += f"\n\n## 实时抓取数据（供参考）\n{scraped_prices}"
 
         try:
             return await self.ask_llm_json(
@@ -127,12 +105,49 @@ class EncyclopediaAgent(BaseAgent):
                 "brand": brand,
                 "model": model,
                 "specs": specs,
-                "new_prices": scraped_prices,
-                "lowest_new_price": None,
+                "new_prices": [],
             }
 
     @staticmethod
     def _find_lowest(prices: list[dict]) -> float | None:
         """找出最低在售价格"""
-        valid = [p.get("price") for p in prices if p.get("price") and p.get("in_stock", True)]
+        valid = [
+            p.get("price") for p in prices
+            if p.get("price") is not None
+            and float(p.get("price")) > 0
+            and p.get("in_stock", True)
+        ]
         return min(valid) if valid else None
+
+
+if __name__ == '__main__':
+    import asyncio
+    import sys
+
+    async def main():
+        keyword = sys.argv[1] if len(sys.argv) > 1 else "iPhone 15"
+
+        ea = EncyclopediaAgent()
+
+        print(f"{'=' * 60}")
+        print(f"EncyclopediaAgent 测试 — 商品: {keyword}")
+        print(f"{'=' * 60}\n")
+
+        result = await ea.execute(product_name=keyword)
+
+        print(f"商品: {result.product_name}")
+        print(f"品牌: {result.brand or '未知'}  |  型号: {result.model or '未知'}")
+        print(f"产地: {result.origin or '未知'}  |  上市: {result.release_date or '未知'}")
+        print(f"评分: {result.rating or 'N/A'}  |  保修: {result.warranty or '未知'}")
+        print(f"最低全新价: ¥{result.lowest_new_price or 'N/A'}")
+        print(f"\n规格参数:")
+        for k, v in result.specs.items():
+            print(f"  {k}: {v}")
+        print(f"\n各渠道价格:")
+        for p in result.new_prices:
+            print(f"  [{p.channel}] ¥{p.price}  {'缺货' if not p.in_stock else '有货'}  {p.url or ''}")
+        print(f"\n参考链接:")
+        for url in result.source_urls:
+            print(f"  {url}")
+
+    asyncio.run(main())

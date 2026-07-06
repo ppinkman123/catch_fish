@@ -89,8 +89,10 @@ class XianyuItemOut(BaseModel):
     price: float
     original_price: Optional[float] = None
     condition: Optional[str] = None
+    seller_nickname: Optional[str] = None
     seller_credit: Optional[int] = None
     location: Optional[str] = None
+    tags: list[str] = Field(default_factory=list)
     images: list[str] = Field(default_factory=list)
     listing_url: Optional[str] = None
     listed_time: Optional[datetime] = None
@@ -122,6 +124,7 @@ class EncyclopediaResult(BaseModel):
     brand: Optional[str] = None
     model: Optional[str] = None
     specs: dict[str, str] = Field(default_factory=dict)
+    origin: Optional[str] = None
     new_prices: list[ChannelPrice] = Field(default_factory=list)
     lowest_new_price: Optional[float] = None
     release_date: Optional[str] = None
@@ -145,6 +148,7 @@ class Recommendation(BaseModel):
     reason: str
     listing_url: Optional[str] = None
     condition: Optional[str] = None
+    seller_nickname: Optional[str] = None
 
 
 class MarketSummary(BaseModel):

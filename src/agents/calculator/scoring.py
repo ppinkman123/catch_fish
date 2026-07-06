@@ -94,7 +94,9 @@ def score_by_market(total_listings: int) -> tuple[float, str]:
 def calc_depreciation_factor(release_date_str: str | None) -> float:
     """
     计算时间折旧系数
-    数码产品一般第一年折旧最快（~30%），之后逐渐放缓
+    通用折旧曲线（数码/手表/服装/包袋均适用）：
+    - 不同品类折旧速度不同，此处取中位数
+    - 手表/奢侈品折旧较慢，数码折旧较快，服装居中
 
     返回: 折旧系数（1.0 = 全新，值越小表示折旧越大）
     """
@@ -106,14 +108,17 @@ def calc_depreciation_factor(release_date_str: str | None) -> float:
         now = datetime.now(timezone.utc)
         months = max(0, (now - release_date.replace(tzinfo=timezone.utc)).days / 30)
 
+        # 通用折旧曲线（较之前数码专属曲线更平缓）
         if months <= 3:
-            return 0.95
+            return 0.97
         elif months <= 6:
-            return 0.90
+            return 0.93
         elif months <= 12:
-            return 0.80
+            return 0.85
         elif months <= 24:
-            return 0.65
+            return 0.72
+        elif months <= 36:
+            return 0.60
         else:
             return 0.50
     except (ValueError, TypeError):
@@ -200,13 +205,16 @@ def normalize_condition(desc: str) -> str:
     """
     desc_lower = desc.lower() if desc else ""
 
-    if any(w in desc_lower for w in ["全新", "99新", "仅拆封", "未使用", "未拆封", "全新未激活"]):
+    if any(w in desc_lower for w in ["全新", "99新", "仅拆封", "未使用", "未拆封", "全新未激活",
+                                       "盒证齐全", "全套", "未佩戴"]):
         return "like_new"
-    elif any(w in desc_lower for w in ["98新", "97新", "几乎全新", "一个月", "两周", "一周"]):
+    elif any(w in desc_lower for w in ["98新", "97新", "几乎全新", "一个月", "两周", "一周",
+                                         "佩戴数次", "试穿"]):
         return "excellent"
-    elif any(w in desc_lower for w in ["95新", "9成新", "轻微", "小磕碰"]):
+    elif any(w in desc_lower for w in ["95新", "9成新", "轻微", "小磕碰", "正常使用"]):
         return "good"
-    elif any(w in desc_lower for w in ["9成", "8成", "划痕", "磕碰", "使用痕迹"]):
+    elif any(w in desc_lower for w in ["9成", "8成", "划痕", "磕碰", "使用痕迹", "褪色", "变形",
+                                         "氧化", "磨损"]):
         return "acceptable"
     else:
         return "good"  # 默认

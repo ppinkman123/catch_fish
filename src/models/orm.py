@@ -7,13 +7,13 @@ from datetime import datetime
 from sqlalchemy import (
     BigInteger,
     DateTime,
-    Decimal,
     Enum,
     Float,
     ForeignKey,
     Index,
     Integer,
     JSON,
+    Numeric,
     String,
     Text,
     func,
@@ -65,9 +65,10 @@ class XianyuItem(Base):
     )
     xianyu_item_id: Mapped[str | None] = mapped_column(String(64), comment="闲鱼商品ID")
     title: Mapped[str | None] = mapped_column(String(500), comment="商品标题")
-    price: Mapped[float | None] = mapped_column(Decimal(10, 2), comment="售价")
-    original_price: Mapped[float | None] = mapped_column(Decimal(10, 2), comment="原价")
+    price: Mapped[float | None] = mapped_column(Numeric(10, 2), comment="售价")
+    original_price: Mapped[float | None] = mapped_column(Numeric(10, 2), comment="原价")
     condition: Mapped[str | None] = mapped_column(String(50), comment="成色")
+    seller_nickname: Mapped[str | None] = mapped_column(String(100), comment="卖家昵称")
     seller_credit: Mapped[int | None] = mapped_column(Integer, comment="卖家信用分")
     location: Mapped[str | None] = mapped_column(String(100), comment="发货地")
     images: Mapped[list | None] = mapped_column(JSON, comment="图片URL列表")
@@ -125,10 +126,10 @@ class AnalysisResult(Base):
         BigInteger, ForeignKey("xianyu_items.id", ondelete="SET NULL"), comment="最佳选择"
     )
     new_price_baseline: Mapped[float | None] = mapped_column(
-        Decimal(10, 2), comment="新品基准价格"
+        Numeric(10, 2), comment="新品基准价格"
     )
     avg_used_price: Mapped[float | None] = mapped_column(
-        Decimal(10, 2), comment="二手均价"
+        Numeric(10, 2), comment="二手均价"
     )
     total_listings: Mapped[int | None] = mapped_column(Integer, comment="二手在售数量")
     recommendations: Mapped[list | None] = mapped_column(JSON, comment="推荐列表")

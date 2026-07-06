@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from src.config import settings
 from src.gateway.chat_router import router as chat_router
 from src.gateway.middleware import setup_middleware
 from src.gateway.router import router
@@ -21,6 +22,7 @@ async def lifespan(app: FastAPI):
     # 启动
     logger.info("=" * 50)
     logger.info("  catch_fish — 闲鱼商品获取与性价比分析系统")
+    logger.info(f"  A2A 模式: {'启用 (分布式)' if settings.a2a_enabled else '禁用 (单进程直接调用)'}")
     logger.info("  A2A Gateway 启动中...")
     logger.info("=" * 50)
 
